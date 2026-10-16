@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tracker Escalation</title>
+<style>
+:root{
+  --page:#f6f6f3; --surface:#ffffff; --surface-2:#f1f0ec; --border:#e2e1dc;
+  --ink:#16161a; --ink-2:#55544f; --ink-3:#8a8983;
+  --accent:#2a78d6; --accent-soft:#e3eefb;
+  --good:#0f8a2e; --good-soft:#e2f4e6; --bad:#c93434; --bad-soft:#fbe6e6;
+  --warn:#a86a00; --warn-soft:#fdf1d8; --exempt:#1f7a6b; --exempt-soft:#dcf2ee;
+  --bar:#2a78d6; --bar-track:#ecebe6;
+  --radius:12px; --shadow:0 1px 2px rgba(0,0,0,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --page:#0f0f0f; --surface:#1a1a19; --surface-2:#232321; --border:#33332f;
+    --ink:#f0efec; --ink-2:#c3c2b7; --ink-3:#8d8c85;
+    --accent:#3987e5; --accent-soft:#1b2c42;
+    --good:#4cc46a; --good-soft:#163020; --bad:#ec6a6a; --bad-soft:#3a1c1c;
+    --warn:#f0b43c; --warn-soft:#3a2d12; --exempt:#4fc7b3; --exempt-soft:#14302b;
+    --bar:#3987e5; --bar-track:#2b2b28;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1200px;margin:0 auto;padding:24px 16px 60px}
+h1{font-size:24px;margin:0 0 4px}
+h2{font-size:17px;margin:0}
+.sub{color:var(--ink-2);margin:0}
+.muted{color:var(--ink-3)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);margin-top:16px}
+.card-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.rules{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border);font-size:12.5px;color:var(--ink-2)}
+.chip b{color:var(--ink)}
+.chip.exempt{background:var(--exempt-soft);border-color:transparent;color:var(--exempt)}
+.chip.exempt b{color:var(--exempt)}
+
+/* filtri */
+.filters{position:sticky;top:0;z-index:5;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-top:16px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.filters-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end}
+.filters-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2);font-weight:600}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 9px;width:100%;min-width:0}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.active-filters{display:flex;gap:6px;flex-wrap:wrap}
+.tag{background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:2px 9px;font-size:12px;font-weight:600}
+button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--ink);padding:7px 12px}
+button:hover{background:var(--surface-2)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button.primary:hover{filter:brightness(1.08)}
+button.danger{color:var(--bad)}
+button.link{border:none;background:none;color:var(--accent);padding:4px 6px}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.seg button{border:none;border-radius:0;padding:6px 12px;font-size:13px}
+.seg button+button{border-left:1px solid var(--border)}
+.seg button.on{background:var(--accent);color:#fff}
+
+/* KPI */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.kpi{background:var(--surface-2);border-radius:10px;padding:14px 16px}
+.kpi .lbl{font-size:12.5px;color:var(--ink-2);font-weight:600}
+.kpi .val{font-size:30px;font-weight:700;letter-spacing:-.02em;margin:4px 0 2px;line-height:1.1}
+.kpi .hint{font-size:12.5px;color:var(--ink-2)}
+.meter{height:8px;border-radius:4px;background:var(--bar-track);margin-top:8px;overflow:hidden;display:flex;gap:2px}
+.meter span{display:block;height:100%}
+.legend{display:flex;gap:12px;font-size:12px;color:var(--ink-2);margin-top:6px;flex-wrap:wrap}
+.dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+
+/* insight */
+.insights{margin:14px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+.insights li{padding:8px 12px;border-radius:8px;background:var(--surface-2);font-size:13.5px}
+.insights li.alert{background:var(--bad-soft)}
+
+/* breakdown */
+.grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:16px}
+@media (max-width:900px){.grid2{grid-template-columns:1fr}}
+.bk{width:100%;border-collapse:collapse}
+.bk th{font-size:12px;color:var(--ink-2);text-align:left;font-weight:600;padding:6px 8px;border-bottom:1px solid var(--border);white-space:nowrap}
+.bk td{padding:9px 8px;border-bottom:1px solid var(--border);vertical-align:middle}
+.bk tr:last-child td{border-bottom:none}
+.bk tr.clickable{cursor:pointer}
+.bk tr.clickable:hover td{background:var(--surface-2)}
+.bk .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.hbar{display:flex;align-items:center;gap:8px;min-width:120px}
+.hbar .track{flex:1;height:10px;background:var(--bar-track);border-radius:4px;overflow:hidden}
+.hbar .fill{height:100%;background:var(--bar);border-radius:0 4px 4px 0}
+.hbar .n{min-width:22px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.pct{font-weight:600}
+.pct.good{color:var(--good)} .pct.bad{color:var(--bad)} .pct.mid{color:var(--warn)}
+
+/* chart mensile */
+.months{display:flex;align-items:flex-end;gap:6px;height:170px;padding-top:10px;border-bottom:1px solid var(--border);position:relative}
+.mcol{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;position:relative;cursor:default}
+.mcol .stack{width:70%;max-width:34px;display:flex;flex-direction:column-reverse;gap:2px}
+.mcol .stack span{display:block;width:100%}
+.mcol .stack span:last-child{border-radius:4px 4px 0 0}
+.mcol .cnt{font-size:11.5px;color:var(--ink-2);margin-bottom:3px;font-variant-numeric:tabular-nums}
+.mlabels{display:flex;gap:6px;margin-top:4px}
+.mlabels div{flex:1;text-align:center;font-size:11px;color:var(--ink-3)}
+.mcol:hover .stack{filter:brightness(1.1)}
+.tip{position:fixed;pointer-events:none;background:var(--ink);color:var(--surface);padding:7px 10px;border-radius:8px;font-size:12.5px;z-index:50;display:none;max-width:240px;line-height:1.4}
+
+/* form */
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.form-grid .full{grid-column:1/-1}
+.form-actions{display:flex;gap:8px;margin-top:12px;align-items:center;flex-wrap:wrap}
+.form-msg{font-size:13px}
+.form-msg.err{color:var(--bad)}
+.form-msg.ok{color:var(--good)}
+.preview{font-size:13px;padding:8px 12px;border-radius:8px;background:var(--surface-2);margin-top:10px;display:none}
+
+/* tabella registro */
+.toolbar{display:flex;gap:8px;flex-wrap:wrap}
+.table-wrap{overflow-x:auto;margin-top:6px}
+table.reg{width:100%;border-collapse:collapse;min-width:980px}
+.reg th{font-size:12px;color:var(--ink-2);text-align:left;font-weight:600;padding:8px;border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none}
+.reg th.nosort{cursor:default}
+.reg td{padding:9px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+.reg tr:hover td{background:var(--surface-2)}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.badge.ok{background:var(--good-soft);color:var(--good)}
+.badge.ko{background:var(--bad-soft);color:var(--bad)}
+.badge.ex{background:var(--exempt-soft);color:var(--exempt)}
+.badge.wait{background:var(--warn-soft);color:var(--warn)}
+.prio{font-weight:700;font-size:12px;padding:2px 7px;border-radius:6px;background:var(--surface-2)}
+.state-open{color:var(--warn);font-weight:600}
+.state-closed{color:var(--ink-2)}
+.small{font-size:12px;color:var(--ink-3)}
+.empty{padding:30px;text-align:center;color:var(--ink-3)}
+.sr{position:absolute;left:-9999px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Tracker Escalation</h1>
+    <p class="sub">Registro delle escalation con verifica dei tempi minimi tra apertura ticket ed escalation.</p>
+    <div class="rules">
+      <span class="chip">P1 <b>≥ 4 ore</b></span>
+      <span class="chip">P2 <b>≥ 1 giorno</b></span>
+      <span class="chip">P3 <b>≥ 3 giorni</b></span>
+      <span class="chip exempt">Topic <b>Utenze</b> → sempre ✓ (nessun vincolo)</span>
+    </div>
+  </header>
+
+  <!-- FILTRI GLOBALI -->
+  <section class="filters" aria-label="Filtri">
+    <div class="filters-row">
+      <label class="f">Dal (apertura escalation)
+        <input type="date" id="fFrom">
+      </label>
+      <label class="f">Al
+        <input type="date" id="fTo">
+      </label>
+      <label class="f">Priority
+        <select id="fPrio"><option value="">Tutte</option><option>P1</option><option>P2</option><option>P3</option></select>
+      </label>
+      <label class="f">Topic
+        <select id="fTopic"><option value="">Tutti</option></select>
+      </label>
+      <label class="f">Nome AM
+        <select id="fAm"><option value="">Tutti</option></select>
+      </label>
+      <label class="f">Stato
+        <select id="fStato"><option value="">Tutti</option><option value="aperta">Aperte</option><option value="chiusa">Chiuse</option></select>
+      </label>
+      <label class="f">Vincolo
+        <select id="fVinc"><option value="">Tutti</option><option value="ok">Rispettato (anche Utenze)</option><option value="ko">Non rispettato</option><option value="ex">Solo Utenze (esenti)</option></select>
+      </label>
+      <label class="f">Cerca
+        <input type="search" id="fQ" placeholder="N. escalation, note…">
+      </label>
+    </div>
+    <div class="filters-foot">
+      <div class="active-filters" id="activeFilters"></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="muted" id="countLbl"></span>
+        <button id="btnReset">Azzera filtri</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- RESOCONTO -->
+  <section class="card" aria-labelledby="hRes">
+    <div class="card-head">
+      <h2 id="hRes">Resoconto</h2>
+      <span class="muted" id="resScope"></span>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi">
+        <div class="lbl">Escalation</div>
+        <div class="val" id="kTot">0</div>
+        <div class="meter" id="mStato"></div>
+        <div class="legend"><span><i class="dot" style="background:var(--warn)"></i><span id="kOpen">0</span> aperte</span><span><i class="dot" style="background:var(--ink-3)"></i><span id="kClosed">0</span> chiuse</span></div>
+      </div>
+      <div class="kpi">
+        <div class="lbl">Vincolo rispettato</div>
+        <div class="val" id="kVinc">—</div>
+        <div class="meter" id="mVinc"></div>
+        <div class="legend"><span><i class="dot" style="background:var(--good)"></i><span id="kOk">0</span> ok</span><span><i class="dot" style="background:var(--exempt)"></i><span id="kEx">0</span> utenze</span><span><i class="dot" style="background:var(--bad)"></i><span id="kKo">0</span> non ok</span></div>
+      </div>
+      <div class="kpi">
+        <div class="lbl">Tempo medio ticket → escalation</div>
+        <div class="val" id="kT2E">—</div>
+        <div class="hint" id="kT2Eh">Quanto si aspetta prima di escalare</div>
+      </div>
+      <div class="kpi">
+        <div class="lbl">Tempo medio di risoluzione</div>
+        <div class="val" id="kRis">—</div>
+        <div class="hint" id="kRish">Da apertura a chiusura escalation</div>
+      </div>
+    </div>
+
+    <ul class="insights" id="insights"></ul>
+
+    <div class="grid2" style="margin-top:20px">
+      <div>
+        <div class="card-head" style="margin-bottom:6px">
+          <h2 style="font-size:15px">Dettaglio per</h2>
+          <div class="seg" id="groupSeg">
+            <button data-g="priority" class="on">Priority</button>
+            <button data-g="topic">Topic</button>
+            <button data-g="am">AM</button>
+          </div>
+        </div>
+        <div class="table-wrap" style="margin-top:0">
+          <table class="bk" id="bkTable"></table>
+        </div>
+        <p class="small" style="margin:8px 0 0">Clicca una riga per filtrare tutta la pagina su quel valore.</p>
+      </div>
+      <div>
+        <div class="card-head" style="margin-bottom:6px">
+          <h2 style="font-size:15px">Escalation per mese</h2>
+          <span class="small">ultimi 12 mesi · per apertura escalation</span>
+        </div>
+        <div class="months" id="months"></div>
+        <div class="mlabels" id="mlabels"></div>
+        <div class="legend"><span><i class="dot" style="background:var(--good)"></i>vincolo ok</span><span><i class="dot" style="background:var(--exempt)"></i>utenze</span><span><i class="dot" style="background:var(--bad)"></i>non ok</span><span><i class="dot" style="background:var(--warn)"></i>in attesa</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FORM -->
+  <section class="card" aria-labelledby="hForm">
+    <div class="card-head"><h2 id="hForm">Nuova escalation</h2></div>
+    <form id="form" autocomplete="off">
+      <div class="form-grid">
+        <label class="f">Numero escalation *<input id="numero" required placeholder="es. INC2192614"></label>
+        <label class="f">Nome AM<input id="am" list="amList"></label>
+        <label class="f">Topic<input id="topic" list="topicList" placeholder="es. Utenze"></label>
+        <label class="f">Priority *
+          <select id="priority" required><option value="">Seleziona…</option><option>P1</option><option>P2</option><option>P3</option></select>
+        </label>
+        <label class="f">Data apertura ticket *<input type="datetime-local" id="apTicket" required></label>
+        <label class="f">Data apertura escalation<input type="datetime-local" id="apEsc"></label>
+        <label class="f">Data chiusura escalation<input type="datetime-local" id="chEsc"></label>
+        <label class="f full">Note<textarea id="note" rows="2"></textarea></label>
+      </div>
+      <datalist id="amList"></datalist>
+      <datalist id="topicList"></datalist>
+      <div class="preview" id="preview"></div>
+      <div class="form-actions">
+        <button type="submit" class="primary" id="btnSave">Aggiungi escalation</button>
+        <button type="button" id="btnCancel" style="display:none">Annulla modifica</button>
+        <span class="form-msg" id="formMsg"></span>
+      </div>
+    </form>
+  </section>
+
+  <!-- REGISTRO -->
+  <section class="card" aria-labelledby="hReg">
+    <div class="card-head">
+      <h2 id="hReg">Escalation registrate</h2>
+      <div class="toolbar">
+        <button id="btnCsv">Esporta Excel (CSV)</button>
+        <button id="btnBackup">Backup</button>
+        <button id="btnRestore">Ripristina backup</button>
+        <input type="file" id="fileRestore" accept=".json,application/json" class="sr">
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="reg">
+        <thead><tr>
+          <th data-s="vinc">Vincolo</th>
+          <th data-s="numero">N. escalation</th>
+          <th data-s="am">Nome AM</th>
+          <th data-s="topic">Topic</th>
+          <th data-s="priority">Priority</th>
+          <th data-s="apTicket">Apertura ticket</th>
+          <th data-s="apEsc">Apertura escalation</th>
+          <th data-s="chEsc">Chiusura escalation</th>
+          <th data-s="stato">Stato</th>
+          <th class="nosort">Note</th>
+          <th class="nosort"></th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+(function(){
+const KEY = 'tracker-escalation-v1';
+const H = 3600e3, D = 24*H;
+const MIN = {P1: 4*H, P2: 1*D, P3: 3*D};
+const MIN_LBL = {P1:'4 ore', P2:'1 giorno', P3:'3 giorni'};
+
+/* ---------- storage ---------- */
+function load(){ try{ const d = JSON.parse(localStorage.getItem(KEY)||'[]'); return Array.isArray(d)?d:[]; }catch(e){ return []; } }
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(data)); }catch(e){ alert('Impossibile salvare nel browser.'); } }
+let data = load();
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ts = v => v ? new Date(v).getTime() : NaN;
+const has = v => v && !isNaN(ts(v));
+function fmtDate(v){ if(!has(v)) return '—'; const d=new Date(v); const p=n=>String(n).padStart(2,'0'); return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`; }
+function fmtDur(ms){
+  if(ms==null || isNaN(ms)) return '—';
+  if(ms < 0) return '−' + fmtDur(-ms);
+  const m = Math.round(ms/60000), d = Math.floor(m/1440), h = Math.floor((m%1440)/60), mi = m%60;
+  if(d>0) return `${d}g ${h}h`;
+  if(h>0) return `${h}h ${mi}m`;
+  return `${mi}m`;
+}
+const avg = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : null;
+const norm = s => String(s||'').trim().toLowerCase();
+const isUtenze = e => norm(e.topic).startsWith('utenz');   // Utenze / Utenza
+const topicKey = s => { const t = String(s||'').trim(); return t ? t.charAt(0).toUpperCase()+t.slice(1) : '(senza topic)'; };
+const amKey = s => String(s||'').trim() || '(senza AM)';
+
+/* Vincolo: tempo tra apertura ticket e apertura escalation >= minimo per priority.
+   Topic "Utenze" -> sempre rispettato (esente). */
+function vincolo(e){
+  if(isUtenze(e)) return {k:'ex', ok:true, label:'✓ Utenze', title:'Topic Utenze: esente dal vincolo, sempre conforme'};
+  const min = MIN[e.priority];
+  const t0 = ts(e.apTicket);
+  if(!min || isNaN(t0)) return {k:'na', ok:null, label:'—', title:''};
+  if(has(e.apEsc)){
+    const delta = ts(e.apEsc) - t0;
+    return delta >= min
+      ? {k:'ok', ok:true, label:'✓ Rispettato', title:`Escalata dopo ${fmtDur(delta)} (minimo ${MIN_LBL[e.priority]})`, delta}
+      : {k:'ko', ok:false, label:'✗ Non rispettato', title:`Escalata dopo ${fmtDur(delta)}, minimo ${MIN_LBL[e.priority]}`, delta};
+  }
+  const passed = Date.now() - t0;
+  return passed >= min
+    ? {k:'ok', ok:true, label:'✓ Escalabile', title:`Trascorsi ${fmtDur(passed)} dal ticket: si può escalare`}
+    : {k:'wait', ok:null, label:'⏳ Attendi ' + fmtDur(min-passed), title:`Mancano ${fmtDur(min-passed)} al minimo di ${MIN_LBL[e.priority]}`};
+}
+const stato = e => has(e.chEsc) ? 'chiusa' : 'aperta';
+const t2e = e => (has(e.apTicket)&&has(e.apEsc)) ? ts(e.apEsc)-ts(e.apTicket) : null;
+const ris = e => (has(e.apEsc)&&has(e.chEsc)) ? ts(e.chEsc)-ts(e.apEsc) : null;
+
+/* ---------- filtri ---------- */
+const F = {from:'',to:'',prio:'',topic:'',am:'',stato:'',vinc:'',q:''};
+const fEls = {from:'fFrom',to:'fTo',prio:'fPrio',topic:'fTopic',am:'fAm',stato:'fStato',vinc:'fVinc',q:'fQ'};
+const fNames = {from:'Dal',to:'Al',prio:'Priority',topic:'Topic',am:'AM',stato:'Stato',vinc:'Vincolo',q:'Cerca'};
+
+function applyFilters(list){
+  const from = F.from ? new Date(F.from+'T00:00').getTime() : null;
+  const to = F.to ? new Date(F.to+'T23:59:59').getTime() : null;
+  const q = norm(F.q);
+  return list.filter(e=>{
+    const ref = has(e.apEsc) ? ts(e.apEsc) : ts(e.apTicket);
+    if(from!=null && !(ref>=from)) return false;
+    if(to!=null && !(ref<=to)) return false;
+    if(F.prio && e.priority!==F.prio) return false;
+    if(F.topic && topicKey(e.topic)!==F.topic) return false;
+    if(F.am && amKey(e.am)!==F.am) return false;
+    if(F.stato && stato(e)!==F.stato) return false;
+    if(F.vinc){
+      const v = vincolo(e);
+      if(F.vinc==='ok' && v.ok!==true) return false;
+      if(F.vinc==='ko' && v.k!=='ko') return false;
+      if(F.vinc==='ex' && v.k!=='ex') return false;
+    }
+    if(q && ![e.numero,e.am,e.topic,e.note].some(x=>norm(x).includes(q))) return false;
+    return true;
+  });
+}
+
+function refreshOptions(){
+  const fill = (sel, values, cur, allLbl) => {
+    sel.innerHTML = `<option value="">${allLbl}</option>` + values.map(v=>`<option${v===cur?' selected':''}>${esc(v)}</option>`).join('');
+  };
+  const topics = [...new Set(data.map(e=>topicKey(e.topic)))].sort((a,b)=>a.localeCompare(b,'it'));
+  const ams = [...new Set(data.map(e=>amKey(e.am)))].sort((a,b)=>a.localeCompare(b,'it'));
+  fill($('fTopic'), topics, F.topic, 'Tutti');
+  fill($('fAm'), ams, F.am, 'Tutti');
+  const tl = new Set(['Utenze', ...data.map(e=>String(e.topic||'').trim()).filter(Boolean)]);
+  $('topicList').innerHTML = [...tl].map(t=>`<option value="${esc(t)}">`).join('');
+  $('amList').innerHTML = [...new Set(data.map(e=>String(e.am||'').trim()).filter(Boolean))].map(t=>`<option value="${esc(t)}">`).join('');
+}
+
+function renderActiveFilters(n){
+  const tags = Object.keys(F).filter(k=>F[k]).map(k=>{
+    let v = F[k];
+    if(k==='from'||k==='to') v = v.split('-').reverse().join('/');
+    if(k==='vinc') v = {ok:'Rispettato',ko:'Non rispettato',ex:'Utenze'}[v];
+    if(k==='stato') v = v==='aperta'?'Aperte':'Chiuse';
+    return `<span class="tag">${fNames[k]}: ${esc(v)}</span>`;
+  });
+  $('activeFilters').innerHTML = tags.length ? tags.join('') : '<span class="muted">Nessun filtro attivo</span>';
+  $('countLbl').textContent = `${n} di ${data.length} escalation`;
+  $('resScope').textContent = tags.length ? `Calcolato su ${n} escalation filtrate` : `Calcolato su tutte le ${n} escalation`;
+}
+
+/* ---------- resoconto ---------- */
+let group = 'priority';
+function meter(el, parts){
+  const tot = parts.reduce((s,p)=>s+p.n,0);
+  el.innerHTML = tot ? parts.filter(p=>p.n).map(p=>`<span style="width:${p.n/tot*100}%;background:${p.c}" title="${p.l}: ${p.n}"></span>`).join('') : '';
+}
+function pctClass(p){ return p==null?'':(p>=90?'good':p>=70?'mid':'bad'); }
+
+function stats(list){
+  const v = list.map(vincolo);
+  const ok = v.filter(x=>x.k==='ok').length, ex = v.filter(x=>x.k==='ex').length, ko = v.filter(x=>x.k==='ko').length, wait = v.filter(x=>x.k==='wait').length;
+  const valutate = ok+ex+ko;
+  return {
+    n:list.length,
+    open:list.filter(e=>stato(e)==='aperta').length,
+    closed:list.filter(e=>stato(e)==='chiusa').length,
+    ok, ex, ko, wait,
+    pct: valutate ? Math.round((ok+ex)/valutate*100) : null,
+    t2e: avg(list.map(t2e).filter(x=>x!=null)), t2eN: list.map(t2e).filter(x=>x!=null).length,
+    ris: avg(list.map(ris).filter(x=>x!=null)), risN: list.map(ris).filter(x=>x!=null).length
+  };
+}
+
+function renderSummary(list){
+  const s = stats(list);
+  $('kTot').textContent = s.n;
+  $('kOpen').textContent = s.open; $('kClosed').textContent = s.closed;
+  meter($('mStato'), [{n:s.open,c:'var(--warn)',l:'Aperte'},{n:s.closed,c:'var(--ink-3)',l:'Chiuse'}]);
+  $('kVinc').innerHTML = s.pct==null ? '—' : `<span class="pct ${pctClass(s.pct)}">${s.pct}%</span>`;
+  $('kOk').textContent = s.ok; $('kEx').textContent = s.ex; $('kKo').textContent = s.ko;
+  meter($('mVinc'), [{n:s.ok,c:'var(--good)',l:'Rispettato'},{n:s.ex,c:'var(--exempt)',l:'Utenze'},{n:s.ko,c:'var(--bad)',l:'Non rispettato'}]);
+  $('kT2E').textContent = fmtDur(s.t2e);
+  $('kT2Eh').textContent = s.t2eN ? `Media su ${s.t2eN} escalation` : 'Nessuna escalation con entrambe le date';
+  $('kRis').textContent = fmtDur(s.ris);
+  $('kRish').textContent = s.risN ? `Media su ${s.risN} escalation ${s.risN===1?'chiusa':'chiuse'}` : 'Nessuna escalation chiusa';
+
+  // insight in linguaggio semplice
+  const ins = [];
+  if(s.ko) ins.push({a:true, t:`<b>${s.ko}</b> escalation ${s.ko===1?'aperta':'aperte'} prima del tempo minimo previsto dalla priority.`});
+  const oldOpen = list.filter(e=>stato(e)==='aperta' && has(e.apEsc)).sort((a,b)=>ts(a.apEsc)-ts(b.apEsc))[0];
+  if(oldOpen) ins.push({t:`Escalation aperta da più tempo: <b>${esc(oldOpen.numero)}</b> (${esc(oldOpen.priority)}), aperta da <b>${fmtDur(Date.now()-ts(oldOpen.apEsc))}</b>.`});
+  if(s.wait) ins.push({t:`<b>${s.wait}</b> ticket non ancora ${s.wait===1?'escalabile':'escalabili'}: il tempo minimo non è ancora trascorso.`});
+  if(s.ex) ins.push({t:`<b>${s.ex}</b> escalation su topic Utenze, ${s.ex===1?'considerata':'considerate'} sempre conforme${s.ex===1?'':'i'}.`});
+  const byTopic = groupBy(list,'topic').filter(g=>g.key!=='(senza topic)');
+  if(byTopic.length>1) ins.push({t:`Topic più frequente: <b>${esc(byTopic[0].key)}</b> con ${byTopic[0].n} escalation.`});
+  if(!list.length) ins.push({t:'Nessuna escalation corrisponde ai filtri selezionati.'});
+  $('insights').innerHTML = ins.map(i=>`<li class="${i.a?'alert':''}">${i.t}</li>`).join('');
+
+  renderBreakdown(list);
+  renderMonths(list);
+}
+
+function groupBy(list, g){
+  const keyOf = g==='priority' ? (e=>e.priority||'—') : g==='topic' ? (e=>topicKey(e.topic)) : (e=>amKey(e.am));
+  const m = new Map();
+  list.forEach(e=>{ const k=keyOf(e); if(!m.has(k)) m.set(k,[]); m.get(k).push(e); });
+  let arr = [...m].map(([key,items])=>({key, items, n:items.length, ...stats(items)}));
+  if(g==='priority'){
+    ['P1','P2','P3'].forEach(p=>{ if(!m.has(p)) arr.push({key:p, items:[], n:0, ...stats([])}); });
+    arr.sort((a,b)=>a.key.localeCompare(b.key));
+  } else arr.sort((a,b)=>b.n-a.n || a.key.localeCompare(b.key,'it'));
+  return arr;
+}
+
+function renderBreakdown(list){
+  const rows = groupBy(list, group);
+  const max = Math.max(1, ...rows.map(r=>r.n));
+  const head = {priority:'Priority', topic:'Topic', am:'Nome AM'}[group];
+  if(!rows.length){ $('bkTable').innerHTML = `<tr><td class="empty">Nessun dato</td></tr>`; return; }
+  $('bkTable').innerHTML = `<thead><tr><th>${head}</th><th>Escalation</th><th class="num">Aperte</th><th class="num">Vincolo ok</th><th class="num">Ticket → esc.</th><th class="num">Risoluzione</th></tr></thead><tbody>` +
+    rows.map(r=>{
+      const label = group==='priority' ? `<span class="prio">${esc(r.key)}</span> <span class="small">min ${MIN_LBL[r.key]||'—'}</span>`
+                  : esc(r.key) + (group==='topic' && norm(r.key).startsWith('utenz') ? ' <span class="badge ex">esente</span>' : '');
+      return `<tr class="clickable" data-k="${esc(r.key)}" title="Filtra su ${esc(r.key)}">
+        <td>${label}</td>
+        <td><div class="hbar"><div class="track"><div class="fill" style="width:${r.n/max*100}%"></div></div><span class="n">${r.n}</span></div></td>
+        <td class="num">${r.open}</td>
+        <td class="num">${r.pct==null?'<span class="muted">—</span>':`<span class="pct ${pctClass(r.pct)}">${r.pct}%</span>`}</td>
+        <td class="num">${fmtDur(r.t2e)}</td>
+        <td class="num">${fmtDur(r.ris)}</td>
+      </tr>`;
+    }).join('') + '</tbody>';
+}
+
+function renderMonths(list){
+  const now = new Date(); const months = [];
+  for(let i=11;i>=0;i--){ const d = new Date(now.getFullYear(), now.getMonth()-i, 1); months.push({y:d.getFullYear(), m:d.getMonth(), ok:0, ex:0, ko:0, wait:0}); }
+  list.forEach(e=>{
+    const d = new Date(has(e.apEsc)?e.apEsc:e.apTicket); if(isNaN(d)) return;
+    const b = months.find(x=>x.y===d.getFullYear() && x.m===d.getMonth()); if(!b) return;
+    const k = vincolo(e).k; if(b[k]!=null) b[k]++;
+  });
+  const tot = b => b.ok+b.ex+b.ko+b.wait;
+  const max = Math.max(1, ...months.map(tot));
+  const MN = ['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'];
+  $('months').innerHTML = months.map((b,i)=>{
+    const t = tot(b);
+    const seg = [['ok','var(--good)'],['ex','var(--exempt)'],['ko','var(--bad)'],['wait','var(--warn)']]
+      .filter(([k])=>b[k]).map(([k,c])=>`<span style="height:${b[k]/max*130}px;background:${c}"></span>`).join('');
+    return `<div class="mcol" data-i="${i}"><div class="cnt">${t||''}</div><div class="stack">${seg}</div></div>`;
+  }).join('');
+  $('mlabels').innerHTML = months.map(b=>`<div>${MN[b.m]}</div>`).join('');
+  const tip = $('tip');
+  $('months').querySelectorAll('.mcol').forEach(col=>{
+    const b = months[+col.dataset.i];
+    col.onmousemove = ev => {
+      tip.innerHTML = `<b>${MN[b.m]} ${b.y}</b><br>${tot(b)} escalation<br>✓ ok: ${b.ok} · Utenze: ${b.ex}<br>✗ non ok: ${b.ko}${b.wait?` · in attesa: ${b.wait}`:''}`;
+      tip.style.display='block';
+      tip.style.left = Math.min(ev.clientX+12, innerWidth-250)+'px'; tip.style.top = (ev.clientY+12)+'px';
+    };
+    col.onmouseleave = () => tip.style.display='none';
+  });
+}
+
+/* ---------- registro ---------- */
+let sortKey = 'apEsc', sortDir = -1;
+function sortVal(e,k){
+  if(k==='vinc') return {ko:0,wait:1,ok:2,ex:3,na:4}[vincolo(e).k];
+  if(k==='stato') return stato(e);
+  if(['apTicket','apEsc','chEsc'].includes(k)) return has(e[k]) ? ts(e[k]) : -Infinity;
+  return norm(e[k]);
+}
+function renderTable(list){
+  const rows = [...list].sort((a,b)=>{ const x=sortVal(a,sortKey), y=sortVal(b,sortKey); return (x>y?1:x<y?-1:0)*sortDir; });
+  document.querySelectorAll('.reg th[data-s]').forEach(th=>{
+    th.textContent = th.textContent.replace(/ [▲▼]$/,'') + (th.dataset.s===sortKey ? (sortDir>0?' ▲':' ▼') : '');
+  });
+  if(!rows.length){ $('tbody').innerHTML = `<tr><td colspan="11" class="empty">${data.length?'Nessuna escalation con i filtri attuali.':'Nessuna escalation registrata.'}</td></tr>`; return; }
+  $('tbody').innerHTML = rows.map(e=>{
+    const v = vincolo(e), st = stato(e);
+    const cls = {ok:'ok',ex:'ex',ko:'ko',wait:'wait',na:''}[v.k];
+    const extra = v.k==='ex' ? '' : (t2e(e)!=null ? `<div class="small">ticket → esc. ${fmtDur(t2e(e))}</div>` : (has(e.apTicket)?`<div class="small">trascorsi ${fmtDur(Date.now()-ts(e.apTicket))} dal ticket</div>`:''));
+    return `<tr>
+      <td><span class="badge ${cls}" title="${esc(v.title)}">${v.label}</span>${extra}</td>
+      <td><b>${esc(e.numero)}</b></td>
+      <td>${esc(e.am)||'<span class="muted">—</span>'}</td>
+      <td>${esc(e.topic)||'<span class="muted">—</span>'}</td>
+      <td><span class="prio">${esc(e.priority)}</span></td>
+      <td>${fmtDate(e.apTicket)}</td>
+      <td>${fmtDate(e.apEsc)}</td>
+      <td>${fmtDate(e.chEsc)}${ris(e)!=null?`<div class="small">risolta in ${fmtDur(ris(e))}</div>`:''}</td>
+      <td class="${st==='aperta'?'state-open':'state-closed'}">${st==='aperta'?'Aperta':'Chiusa'}</td>
+      <td style="max-width:220px">${esc(e.note)||'<span class="muted">—</span>'}</td>
+      <td style="white-space:nowrap"><button class="link" data-edit="${esc(e.id)}">Modifica</button><button class="link danger" data-del="${esc(e.id)}">Elimina</button></td>
+    </tr>`;
+  }).join('');
+}
+
+/* ---------- render ---------- */
+function render(){
+  refreshOptions();
+  const list = applyFilters(data);
+  renderActiveFilters(list.length);
+  renderSummary(list);
+  renderTable(list);
+}
+
+/* ---------- eventi filtri ---------- */
+Object.entries(fEls).forEach(([k,id])=>{
+  $(id).addEventListener(k==='q'?'input':'change', ev=>{ F[k]=ev.target.value; render(); });
+});
+$('btnReset').onclick = ()=>{ Object.keys(F).forEach(k=>{F[k]=''; $(fEls[k]).value='';}); render(); };
+$('groupSeg').addEventListener('click', ev=>{
+  const b = ev.target.closest('button'); if(!b) return;
+  group = b.dataset.g;
+  $('groupSeg').querySelectorAll('button').forEach(x=>x.classList.toggle('on', x===b));
+  renderBreakdown(applyFilters(data));
+});
+$('bkTable').addEventListener('click', ev=>{
+  const tr = ev.target.closest('tr[data-k]'); if(!tr) return;
+  const k = tr.dataset.k, fk = {priority:'prio', topic:'topic', am:'am'}[group];
+  F[fk] = F[fk]===k ? '' : k;
+  $(fEls[fk]).value = F[fk];
+  render();
+});
+document.querySelectorAll('.reg th[data-s]').forEach(th=>th.addEventListener('click', ()=>{
+  const k = th.dataset.s; if(sortKey===k) sortDir*=-1; else { sortKey=k; sortDir=1; } renderTable(applyFilters(data));
+}));
+
+/* ---------- form ---------- */
+const fields = ['numero','am','topic','priority','apTicket','apEsc','chEsc','note'];
+let editingId = null;
+function readForm(){ const o={}; fields.forEach(f=>o[f]=$(f).value.trim()); return o; }
+function msg(t, kind){ $('formMsg').textContent=t; $('formMsg').className='form-msg '+(kind||''); }
+function updatePreview(){
+  const o = readForm(); const p = $('preview');
+  if(!o.priority && !isUtenze(o)){ p.style.display='none'; return; }
+  if(!o.apTicket && !isUtenze(o)){ p.style.display='none'; return; }
+  const v = vincolo(o);
+  p.style.display='block';
+  p.innerHTML = `Anteprima vincolo: <span class="badge ${({ok:'ok',ex:'ex',ko:'ko',wait:'wait'})[v.k]||''}">${v.label}</span> <span class="small">${esc(v.title)}</span>`;
+}
+fields.forEach(f=>$(f).addEventListener('input', updatePreview));
+
+$('form').addEventListener('submit', ev=>{
+  ev.preventDefault();
+  const o = readForm();
+  if(!o.numero || !o.priority || !o.apTicket) return msg('Compila i campi obbligatori (*).','err');
+  if(o.apEsc && ts(o.apEsc) < ts(o.apTicket)) return msg('L\'apertura escalation non può essere prima dell\'apertura ticket.','err');
+  if(o.chEsc && !o.apEsc) return msg('Inserisci prima la data di apertura escalation.','err');
+  if(o.chEsc && ts(o.chEsc) < ts(o.apEsc)) return msg('La chiusura non può essere prima dell\'apertura escalation.','err');
+  const dup = data.find(e=>norm(e.numero)===norm(o.numero) && e.id!==editingId);
+  if(dup && !confirm(`Esiste già un'escalation ${dup.numero}. Salvare comunque?`)) return;
+  if(editingId){
+    const i = data.findIndex(e=>e.id===editingId);
+    data[i] = {...data[i], ...o};
+    msg('Modifica salvata.','ok');
+  } else {
+    data.push({...o, id: Date.now().toString(36)+Math.random().toString(36).slice(2,7), createdAt: new Date().toISOString()});
+    msg('Escalation aggiunta.','ok');
+  }
+  save(); resetForm(false); render();
+});
+function resetForm(clearMsg=true){
+  $('form').reset(); editingId=null;
+  $('btnSave').textContent='Aggiungi escalation'; $('hForm').textContent='Nuova escalation';
+  $('btnCancel').style.display='none'; $('preview').style.display='none';
+  if(clearMsg) msg('');
+}
+$('btnCancel').onclick = ()=>resetForm();
+
+$('tbody').addEventListener('click', ev=>{
+  const ed = ev.target.closest('[data-edit]'), dl = ev.target.closest('[data-del]');
+  if(ed){
+    const e = data.find(x=>x.id===ed.dataset.edit); if(!e) return;
+    editingId = e.id; fields.forEach(f=>$(f).value = e[f]||'');
+    $('btnSave').textContent='Salva modifiche'; $('hForm').textContent='Modifica escalation '+e.numero;
+    $('btnCancel').style.display=''; msg(''); updatePreview();
+    $('form').scrollIntoView({behavior:'smooth', block:'start'});
+  }
+  if(dl){
+    const e = data.find(x=>x.id===dl.dataset.del); if(!e) return;
+    if(confirm(`Eliminare l'escalation ${e.numero}?`)){ data = data.filter(x=>x.id!==e.id); save(); render(); }
+  }
+});
+
+/* ---------- export / backup ---------- */
+function download(name, content, type){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content],{type}));
+  a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+const today = () => new Date().toISOString().slice(0,10);
+$('btnCsv').onclick = ()=>{
+  const list = applyFilters(data);
+  const cols = ['Vincolo','N. escalation','Nome AM','Topic','Priority','Apertura ticket','Apertura escalation','Chiusura escalation','Stato','Ticket→Escalation','Tempo risoluzione','Note'];
+  const q = v => '"' + String(v==null?'':v).replace(/"/g,'""') + '"';
+  const rows = list.map(e=>{ const v=vincolo(e); return [v.label.replace(/^[✓✗⏳] /,''), e.numero, e.am, e.topic, e.priority, fmtDate(e.apTicket), fmtDate(e.apEsc), fmtDate(e.chEsc), stato(e), fmtDur(t2e(e)), fmtDur(ris(e)), e.note].map(q).join(';'); });
+  download(`escalation_${today()}.csv`, '﻿' + cols.map(q).join(';') + '\n' + rows.join('\n'), 'text/csv;charset=utf-8');
+};
+$('btnBackup').onclick = ()=> download(`backup_escalation_${today()}.json`, JSON.stringify(data,null,2), 'application/json');
+$('btnRestore').onclick = ()=> $('fileRestore').click();
+$('fileRestore').onchange = ev=>{
+  const f = ev.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{
+    try{
+      let d = JSON.parse(r.result);
+      if(!Array.isArray(d)) d = Object.values(d||{}).find(Array.isArray) || null;
+      if(!d) throw new Error();
+      if(!confirm(`Il backup contiene ${d.length} escalation. Sostituire i ${data.length} dati attuali?`)) return;
+      data = d.map(e=>({id: e.id || Date.now().toString(36)+Math.random().toString(36).slice(2,7), createdAt: e.createdAt || new Date().toISOString(), ...e}));
+      save(); render();
+    }catch(e){ alert('File di backup non valido.'); }
+    ev.target.value='';
+  };
+  r.readAsText(f);
+};
+
+render();
+setInterval(render, 60000); // aggiorna i tempi "trascorsi" ogni minuto
+})();
+</script>
+</body>
+</html>
