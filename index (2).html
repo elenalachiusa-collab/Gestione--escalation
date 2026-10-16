@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tracker Escalation</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: operational tool — summary strip, entry form, then the escalation register */
+:root{
+  color-scheme:light;
+  --bg:#ffffff; --panel:#ffffff; --fg:#1e1530; --muted:#6b6280; --line:#e6e0f0; --soft:#f5f1fb;
+  --accent:#6b2fbf; --accent-fg:#ffffff;
+  --ok:#14804a; --ok-bg:#e3f4ea; --bad:#c2352b; --bad-bg:#fbe7e5; --warn:#a86500; --warn-bg:#fdf1dc;
+  --p1:#c2352b; --p2:#c97a00; --p3:#6b2fbf;
+  --sans:"Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:14px;line-height:1.45}
+.wrap{max-width:1280px;margin:0 auto;padding-block:24px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:20px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+h1{font-size:26px;font-weight:700;letter-spacing:-.01em;margin:0;text-wrap:balance;color:var(--accent)}
+.sub{color:var(--muted);margin:2px 0 0}
+.rules{display:flex;flex-wrap:wrap;gap:6px}
+.rule{font-family:var(--mono);font-size:12px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:3px 8px;color:var(--muted)}
+.rule b{color:var(--fg);font-weight:500}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.stat{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+.stat .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.stat .val{font-size:28px;font-weight:600;font-variant-numeric:tabular-nums}
+.stat.ok .val{color:var(--ok)} .stat.bad .val{color:var(--bad)}
+
+.report-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;padding:16px 16px 0}
+.kpi{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+.kpi .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.kpi .val{font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--accent)}
+.kpi .foot{font-size:12px;color:var(--muted)}
+.rtables{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,480px),1fr));gap:16px;padding:16px}
+.rt{min-width:0}
+.rt h3{font-size:13px;font-weight:600;margin:0 0 8px}
+.rt .tablebox{border:1px solid var(--line);border-radius:10px}
+.rt table{min-width:460px}
+.bar{display:flex;align-items:center;gap:8px}
+.bar i{display:block;height:8px;border-radius:4px;background:var(--accent);opacity:.75;min-width:2px}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.form-head{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.form-head h2,.list-head h2{font-size:15px;font-weight:600;margin:0}
+form{padding:16px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px 14px}
+@media (max-width:900px){form{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:520px){form{grid-template-columns:minmax(0,1fr)}}
+.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f.wide{grid-column:1/-1}
+label{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.02em}
+label .req{color:var(--bad)}
+input,select,textarea{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;box-sizing:border-box;min-width:0}
+textarea{resize:vertical;min-height:60px}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.actions{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+button{font:inherit;font-weight:600;border-radius:8px;padding:8px 14px;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--fg)}
+button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+button.ghost{background:transparent}
+button:disabled{opacity:.5;cursor:not-allowed}
+.msg{font-size:13px}
+.msg.err{color:var(--bad)} .msg.okm{color:var(--ok)}
+.preview{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+
+.list-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.filters input{width:200px}
+.chips{display:flex;gap:4px;flex-wrap:wrap}
+.chip{padding:5px 10px;font-size:12px;border-radius:999px;font-weight:600}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.tablebox{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:1000px;font-size:13px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--soft)}
+td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+.mono{font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.note{max-width:260px;color:var(--muted);white-space:pre-wrap;word-break:break-word}
+.prio{display:inline-block;font-family:var(--mono);font-weight:500;font-size:12px;padding:2px 8px;border-radius:5px;border:1px solid currentColor}
+.prio.P1{color:var(--p1)} .prio.P2{color:var(--p2)} .prio.P3{color:var(--p3)}
+.check{display:flex;align-items:center;gap:8px}
+.mark{width:26px;height:26px;border-radius:50%;display:inline-grid;place-items:center;font-weight:700;font-size:15px;flex:none}
+.mark.ok{background:var(--ok-bg);color:var(--ok)}
+.mark.bad{background:var(--bad-bg);color:var(--bad)}
+.mark.na{background:var(--soft);color:var(--muted)}
+.hint{font-size:11.5px;color:var(--muted);line-height:1.3}
+.hint.wait{color:var(--warn)}
+.state{font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.state.open{background:var(--warn-bg);color:var(--warn)}
+.state.closed{background:var(--soft);color:var(--muted)}
+.rowact{display:flex;gap:6px;white-space:nowrap}
+.rowact button{padding:4px 9px;font-size:12px}
+.rowact .danger{color:var(--bad)}
+.empty{padding:36px 16px;text-align:center;color:var(--muted)}
+.empty strong{display:block;color:var(--fg);font-size:15px;margin-bottom:4px}
+tr.editing td{background:var(--soft)}
+@media (prefers-reduced-motion:no-preference){button{transition:background .15s,border-color .15s}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Tracker Escalation</h1>
+      <p class="sub">Registro delle escalation con verifica dei tempi minimi per priorità.</p>
+    </div>
+    <div class="rules" aria-label="Soglie per priorità">
+      <span class="rule"><b>P1</b> ≥ 4 ore</span>
+      <span class="rule"><b>P2</b> ≥ 1 giorno</span>
+      <span class="rule"><b>P3</b> ≥ 3 giorni</span>
+    </div>
+  </header>
+
+  <section class="stats" aria-label="Riepilogo">
+    <div class="stat"><span class="lbl">Totale</span><span class="val" id="s-tot">0</span></div>
+    <div class="stat"><span class="lbl">Aperte</span><span class="val" id="s-open">0</span></div>
+    <div class="stat"><span class="lbl">Chiuse</span><span class="val" id="s-closed">0</span></div>
+    <div class="stat ok"><span class="lbl">Vincolo rispettato</span><span class="val" id="s-ok">0</span></div>
+    <div class="stat bad"><span class="lbl">Non rispettato</span><span class="val" id="s-bad">0</span></div>
+  </section>
+
+  <section class="panel" aria-labelledby="rep-title">
+    <div class="list-head"><h2 id="rep-title">Resoconto</h2><span class="hint">Calcolato su tutte le escalation registrate</span></div>
+    <div class="report-kpis">
+      <div class="kpi"><span class="lbl">Tempo medio di risoluzione</span><span class="val" id="k-res">—</span><span class="foot" id="k-res-n">Apertura → chiusura escalation</span></div>
+      <div class="kpi"><span class="lbl">Tempo medio ticket → escalation</span><span class="val" id="k-te">—</span><span class="foot" id="k-te-n">Apertura ticket → apertura escalation</span></div>
+    </div>
+    <div class="rtables">
+      <div class="rt"><h3>Per priorità</h3><div class="tablebox"><table>
+        <thead><tr><th>Priority</th><th>Escalation</th><th>Aperte</th><th>Vincolo ✓</th><th>T. medio risoluzione</th><th>T. medio ticket → esc.</th></tr></thead>
+        <tbody id="rep-prio"></tbody></table></div></div>
+      <div class="rt"><h3>Per topic</h3><div class="tablebox"><table>
+        <thead><tr><th>Topic</th><th>Escalation</th><th>T. medio risoluzione</th><th>T. medio ticket → esc.</th></tr></thead>
+        <tbody id="rep-topic"></tbody></table></div></div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="form-title">
+    <div class="form-head">
+      <h2 id="form-title">Nuova escalation</h2>
+      <span class="preview" id="preview"></span>
+    </div>
+    <form id="esc-form" novalidate>
+      <div class="f"><label for="f-numero">Numero escalation <span class="req">*</span></label><input id="f-numero" autocomplete="off"></div>
+      <div class="f"><label for="f-am">Nome AM</label><input id="f-am" autocomplete="off"></div>
+      <div class="f"><label for="f-topic">Topic</label><input id="f-topic" autocomplete="off"></div>
+      <div class="f"><label for="f-priority">Priority <span class="req">*</span></label>
+        <select id="f-priority"><option value="">Seleziona…</option><option>P1</option><option>P2</option><option>P3</option></select></div>
+      <div class="f"><label for="f-apticket">Data apertura ticket <span class="req">*</span></label><input id="f-apticket" type="datetime-local"></div>
+      <div class="f"><label for="f-apesc">Data apertura escalation</label><input id="f-apesc" type="datetime-local"></div>
+      <div class="f"><label for="f-chesc">Data chiusura escalation</label><input id="f-chesc" type="datetime-local"></div>
+      <div class="f"></div>
+      <div class="f wide"><label for="f-note">Note</label><textarea id="f-note"></textarea></div>
+      <div class="actions">
+        <button type="submit" class="primary" id="btn-save">Aggiungi escalation</button>
+        <button type="button" class="ghost" id="btn-cancel" hidden>Annulla modifica</button>
+        <span class="msg" id="form-msg" role="status"></span>
+      </div>
+    </form>
+  </section>
+
+  <section class="panel" aria-labelledby="list-title">
+    <div class="list-head">
+      <h2 id="list-title">Escalation registrate</h2>
+      <div class="filters">
+        <input id="q" type="search" placeholder="Cerca numero, AM, topic…" aria-label="Cerca">
+        <div class="chips" role="group" aria-label="Filtro priorità">
+          <button class="chip" data-p="" aria-pressed="true">Tutte</button>
+          <button class="chip" data-p="P1" aria-pressed="false">P1</button>
+          <button class="chip" data-p="P2" aria-pressed="false">P2</button>
+          <button class="chip" data-p="P3" aria-pressed="false">P3</button>
+        </div>
+        <select id="f-state" aria-label="Filtro stato"><option value="">Tutti gli stati</option><option value="open">Aperte</option><option value="closed">Chiuse</option></select>
+        <button type="button" id="btn-csv">Esporta Excel (CSV)</button>
+        <button type="button" id="btn-backup">Backup</button>
+        <button type="button" id="btn-restore">Ripristina backup</button>
+        <input type="file" id="file-restore" accept=".json,application/json" hidden>
+      </div>
+    </div>
+    <div class="tablebox">
+      <table>
+        <thead><tr>
+          <th>Vincolo</th><th>N. escalation</th><th>Nome AM</th><th>Topic</th><th>Priority</th>
+          <th>Apertura ticket</th><th>Apertura escalation</th><th>Chiusura escalation</th><th>Stato</th><th>Note</th><th></th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="empty"><strong>Nessuna escalation ancora</strong>Compila il modulo qui sopra per aggiungere la prima.</div>
+  </section>
+
+</div>
+
+<script>
+(function(){
+  const H = 3600e3;
+  const TH = {P1: 4*H, P2: 24*H, P3: 72*H};
+  const $ = id => document.getElementById(id);
+  let docs = [], editingId = null, confirmId = null, prioFilter = "", readOnly = false;
+
+  function parse(s){ if(!s) return null; const d = new Date(s); return isNaN(d) ? null : d; }
+  function fmt(s){ const d = parse(s); if(!d) return "—";
+    return d.toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit",year:"numeric"})+" "+d.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"}); }
+  function dur(ms){ ms = Math.max(0, ms); const d = Math.floor(ms/(24*H)), h = Math.floor((ms%(24*H))/H), m = Math.ceil((ms%H)/60e3);
+    if(d) return d+"g "+h+"h"; if(h) return h+"h "+(m===60?0:m)+"m"; return m+"m"; }
+
+  // Esito del vincolo: tempo trascorso dall'apertura del ticket ad oggi (o alla chiusura escalation, se chiusa) >= soglia
+  function evaluate(r, now){
+    if((r.topic||"").trim().toLowerCase()==="utenze") return {k:"ok", text:"Utenze: sempre valida"};
+    const t = parse(r.apTicket), th = TH[r.priority];
+    if(!t || !th) return {k:"na", text:"Dati mancanti"};
+    const c = parse(r.chEsc);
+    const ref = c || now;
+    const diff = ref - t;
+    if(diff >= th) return {k:"ok", text:"Trascorsi "+dur(diff)+" dal ticket"};
+    if(c) return {k:"bad", text:"Chiusa dopo "+dur(diff)+" (servivano "+dur(th)+")"};
+    return {k:"bad", wait:true, text:"Diventa ✓ tra "+dur(th-diff)};
+  }
+
+  function readForm(){
+    return {numero:$("f-numero").value.trim(), am:$("f-am").value.trim(), topic:$("f-topic").value.trim(),
+      priority:$("f-priority").value, apTicket:$("f-apticket").value, apEsc:$("f-apesc").value,
+      chEsc:$("f-chesc").value, note:$("f-note").value.trim()};
+  }
+  function fillForm(r){
+    $("f-numero").value=r.numero||""; $("f-am").value=r.am||""; $("f-topic").value=r.topic||"";
+    $("f-priority").value=r.priority||""; $("f-apticket").value=r.apTicket||""; $("f-apesc").value=r.apEsc||"";
+    $("f-chesc").value=r.chEsc||""; $("f-note").value=r.note||""; updatePreview();
+  }
+  function setMsg(t, cls){ const m=$("form-msg"); m.textContent=t||""; m.className="msg "+(cls||""); }
+
+  function updatePreview(){
+    const r = readForm(), p = $("preview");
+    p.textContent = "";
+    if((!r.priority || !r.apTicket) && r.topic.toLowerCase()!=="utenze") return;
+    const ev = evaluate(r, new Date());
+    const mk = document.createElement("span"); mk.className="mark "+ev.k; mk.textContent = ev.k==="ok"?"✓":"✗";
+    const tx = document.createElement("span"); tx.textContent = ev.text;
+    p.append(mk, tx);
+  }
+
+  function render(){
+    const now = new Date();
+    const q = $("q").value.trim().toLowerCase(), st = $("f-state").value;
+    let tot=0, open=0, closed=0, ok=0, bad=0;
+    docs.forEach(r => { tot++; r.chEsc ? closed++ : open++; const ev=evaluate(r,now); if(ev.k==="ok") ok++; else if(ev.k==="bad") bad++; });
+    $("s-tot").textContent=tot; $("s-open").textContent=open; $("s-closed").textContent=closed; $("s-ok").textContent=ok; $("s-bad").textContent=bad;
+    renderReport(now);
+
+    const list = docs.filter(r => {
+      if(prioFilter && r.priority!==prioFilter) return false;
+      if(st==="open" && r.chEsc) return false;
+      if(st==="closed" && !r.chEsc) return false;
+      if(q && ![r.numero,r.am,r.topic,r.note].join(" ").toLowerCase().includes(q)) return false;
+      return true;
+    }).sort((a,b)=> (b.apEsc||b.apTicket||"").localeCompare(a.apEsc||a.apTicket||""));
+
+    const tb = $("rows"); tb.textContent = "";
+    $("empty").hidden = docs.length>0;
+    if(docs.length && !list.length){
+      const tr=document.createElement("tr"), td=document.createElement("td"); td.colSpan=11; td.className="empty"; td.textContent="Nessuna escalation corrisponde ai filtri."; tr.append(td); tb.append(tr);
+    }
+    list.forEach(r => {
+      const ev = evaluate(r, now);
+      const tr = document.createElement("tr"); if(r.id===editingId) tr.className="editing";
+      const cell = (txt, cls) => { const td=document.createElement("td"); if(cls) td.className=cls; td.textContent = txt||"—"; tr.append(td); return td; };
+      // vincolo
+      const tdc=document.createElement("td"); const wrap=document.createElement("div"); wrap.className="check";
+      const mk=document.createElement("span"); mk.className="mark "+ev.k; mk.textContent= ev.k==="ok"?"✓":ev.k==="bad"?"✗":"–"; mk.setAttribute("aria-label", ev.k==="ok"?"Rispettato":ev.k==="bad"?"Non rispettato":"Dati mancanti");
+      const hn=document.createElement("span"); hn.className="hint"+(ev.wait?" wait":""); hn.textContent=ev.text;
+      wrap.append(mk,hn); tdc.append(wrap); tr.append(tdc);
+      cell(r.numero,"mono"); cell(r.am); cell(r.topic);
+      const tdp=document.createElement("td"); if(r.priority){const s=document.createElement("span"); s.className="prio "+r.priority; s.textContent=r.priority; tdp.append(s);} else tdp.textContent="—"; tr.append(tdp);
+      cell(fmt(r.apTicket),"mono"); cell(fmt(r.apEsc),"mono"); cell(fmt(r.chEsc),"mono");
+      const tds=document.createElement("td"); const s=document.createElement("span"); s.className="state "+(r.chEsc?"closed":"open"); s.textContent=r.chEsc?"Chiusa":"Aperta"; tds.append(s); tr.append(tds);
+      cell(r.note,"note");
+      const tda=document.createElement("td"); const act=document.createElement("div"); act.className="rowact";
+      if(!readOnly){
+        if(confirmId===r.id){
+          const y=document.createElement("button"); y.className="danger"; y.textContent="Conferma eliminazione"; y.onclick=()=>remove(r.id);
+          const n=document.createElement("button"); n.textContent="No"; n.onclick=()=>{confirmId=null; render();};
+          act.append(y,n);
+        } else {
+          const e=document.createElement("button"); e.textContent="Modifica"; e.onclick=()=>startEdit(r);
+          const d=document.createElement("button"); d.className="danger"; d.textContent="Elimina"; d.onclick=()=>{confirmId=r.id; render();};
+          act.append(e,d);
+        }
+      }
+      tda.append(act); tr.append(tda);
+      tb.append(tr);
+    });
+  }
+
+  // Resoconto: medie su tutte le escalation
+  function stats(list, now){
+    const res = [], te = [];
+    let open = 0, ok = 0;
+    list.forEach(r => {
+      const t = parse(r.apTicket), e = parse(r.apEsc), c = parse(r.chEsc);
+      if(e && c && c >= e) res.push(c - e);
+      if(t && e && e >= t) te.push(e - t);
+      if(!r.chEsc) open++;
+      if(evaluate(r, now).k === "ok") ok++;
+    });
+    const avg = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : null;
+    return {n:list.length, open, ok, res:avg(res), resN:res.length, te:avg(te), teN:te.length};
+  }
+  function renderReport(now){
+    const all = stats(docs, now);
+    $("k-res").textContent = all.res==null ? "—" : dur(all.res);
+    $("k-res-n").textContent = all.resN ? "Su "+all.resN+" escalation chiuse" : "Nessuna escalation chiusa";
+    $("k-te").textContent = all.te==null ? "—" : dur(all.te);
+    $("k-te-n").textContent = all.teN ? "Su "+all.teN+" escalation con entrambe le date" : "Servono le date di apertura ticket ed escalation";
+    const td = (tr, txt, cls) => { const c=document.createElement("td"); if(cls) c.className=cls; c.textContent=txt; tr.append(c); return c; };
+    const tp = $("rep-prio"); tp.textContent = "";
+    ["P1","P2","P3"].forEach(p => {
+      const s = stats(docs.filter(r=>r.priority===p), now);
+      const tr = document.createElement("tr");
+      const c = document.createElement("td"); const b=document.createElement("span"); b.className="prio "+p; b.textContent=p; c.append(b); tr.append(c);
+      td(tr, s.n, "num"); td(tr, s.open, "num"); td(tr, s.n ? s.ok+" su "+s.n : "—", "num");
+      td(tr, s.res==null?"—":dur(s.res), "mono"); td(tr, s.te==null?"—":dur(s.te), "mono");
+      tp.append(tr);
+    });
+    const groups = new Map();
+    docs.forEach(r => { const label = (r.topic||"").trim() || "(senza topic)"; const k = label.toLowerCase();
+      if(!groups.has(k)) groups.set(k, {label, list:[]}); groups.get(k).list.push(r); });
+    const tt = $("rep-topic"); tt.textContent = "";
+    if(!groups.size){ const tr=document.createElement("tr"); const c=td(tr,"Ancora nessuna escalation.","hint"); c.colSpan=4; tt.append(tr); return; }
+    const max = Math.max(...[...groups.values()].map(g=>g.list.length));
+    [...groups.values()].sort((a,b)=>b.list.length-a.list.length || a.label.localeCompare(b.label)).forEach(g => {
+      const s = stats(g.list, now); const tr = document.createElement("tr");
+      td(tr, g.label);
+      const c = document.createElement("td"); const bar=document.createElement("div"); bar.className="bar";
+      const i=document.createElement("i"); i.style.width = Math.round(80*s.n/max)+"px"; const n=document.createElement("span"); n.className="num"; n.textContent=s.n;
+      bar.append(i,n); c.append(bar); tr.append(c);
+      td(tr, s.res==null?"—":dur(s.res), "mono"); td(tr, s.te==null?"—":dur(s.te), "mono");
+      tt.append(tr);
+    });
+  }
+
+  function startEdit(r){
+    editingId=r.id; confirmId=null; fillForm(r);
+    $("form-title").textContent="Modifica escalation "+(r.numero||"");
+    $("btn-save").textContent="Salva modifiche"; $("btn-cancel").hidden=false; setMsg("");
+    $("esc-form").scrollIntoView({behavior:"smooth",block:"start"}); render();
+  }
+  function resetForm(){
+    editingId=null; fillForm({}); $("form-title").textContent="Nuova escalation";
+    $("btn-save").textContent="Aggiungi escalation"; $("btn-cancel").hidden=true; render();
+  }
+
+  async function save(ev){
+    ev.preventDefault();
+    const r = readForm();
+    if(!r.numero) return setMsg("Inserisci il numero dell'escalation.","err");
+    if(!r.priority) return setMsg("Scegli la priority.","err");
+    if(!r.apTicket) return setMsg("Inserisci la data di apertura del ticket.","err");
+    if(r.apEsc && parse(r.apEsc) < parse(r.apTicket)) return setMsg("L'apertura escalation non può precedere l'apertura del ticket.","err");
+    if(r.chEsc && r.apEsc && parse(r.chEsc) < parse(r.apEsc)) return setMsg("La chiusura non può precedere l'apertura dell'escalation.","err");
+    const btn=$("btn-save"); btn.disabled=true;
+    try{
+      if(editingId){
+        const i = docs.findIndex(d=>d.id===editingId);
+        const old = docs[i] || {};
+        docs[i] = {...r, id: editingId, createdAt: old.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString()};
+        persist(); setMsg("Modifiche salvate.","okm");
+      } else {
+        docs.push({...r, id: newId(), createdAt: new Date().toISOString()});
+        persist(); setMsg("Escalation aggiunta.","okm");
+      }
+      resetForm();
+    }catch(e){
+      setMsg("Salvataggio non riuscito: il browser non permette di salvare dati su questa pagina.","err");
+    }finally{ btn.disabled=false; }
+  }
+
+  async function remove(id){
+    docs = docs.filter(d=>d.id!==id);
+    try{ persist(); if(editingId===id) resetForm(); }
+    catch(e){ setMsg("Eliminazione non riuscita. Riprova.","err"); }
+    confirmId=null; render();
+  }
+
+  $("esc-form").addEventListener("submit", save);
+  $("btn-cancel").addEventListener("click", ()=>{ resetForm(); setMsg(""); });
+  ["f-priority","f-apticket","f-apesc","f-topic","f-chesc"].forEach(id=>$(id).addEventListener("input", updatePreview));
+  $("q").addEventListener("input", render);
+  $("f-state").addEventListener("change", render);
+  document.querySelectorAll(".chip").forEach(b=>b.addEventListener("click",()=>{
+    prioFilter=b.dataset.p; document.querySelectorAll(".chip").forEach(c=>c.setAttribute("aria-pressed", String(c===b))); render();
+  }));
+  setInterval(()=>{ render(); updatePreview(); }, 60e3);
+  render();
+
+  // Salvataggio locale nel browser
+  const KEY = "tracker-escalation-v1";
+  function newId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+  function persist(){ localStorage.setItem(KEY, JSON.stringify(docs)); }
+  try{ docs = JSON.parse(localStorage.getItem(KEY) || "[]"); if(!Array.isArray(docs)) docs = []; }
+  catch(e){ docs = []; setMsg("Il browser non permette di salvare dati su questa pagina.","err"); }
+  render();
+
+  function download(name, text, type){
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], {type}));
+    a.download = name; document.body.append(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+  }
+  const today = () => new Date().toISOString().slice(0,10);
+  $("btn-csv").addEventListener("click", ()=>{
+    const now = new Date();
+    const head = ["Vincolo","Numero escalation","Nome AM","Topic","Priority","Apertura ticket","Apertura escalation","Chiusura escalation","Stato","Note"];
+    const q = v => '"'+String(v==null?"":v).replace(/"/g,'""')+'"';
+    const lines = docs.map(r=>{ const ev=evaluate(r,now);
+      return [ev.k==="ok"?"Rispettato":ev.k==="bad"?"Non rispettato":"Dati mancanti", r.numero, r.am, r.topic, r.priority,
+        fmt(r.apTicket), fmt(r.apEsc), fmt(r.chEsc), r.chEsc?"Chiusa":"Aperta", r.note].map(q).join(";"); });
+    download("escalation-"+today()+".csv", "\ufeff"+[head.map(q).join(";")].concat(lines).join("\r\n"), "text/csv;charset=utf-8");
+  });
+  $("btn-backup").addEventListener("click", ()=> download("backup-escalation-"+today()+".json", JSON.stringify(docs,null,2), "application/json"));
+  $("btn-restore").addEventListener("click", ()=> $("file-restore").click());
+  $("file-restore").addEventListener("change", async ev=>{
+    const f = ev.target.files[0]; ev.target.value = ""; if(!f) return;
+    try{
+      const data = JSON.parse(await f.text());
+      if(!Array.isArray(data)) throw 0;
+      const byId = new Map(docs.map(d=>[d.id,d]));
+      data.forEach(d=>{ if(d && typeof d==="object"){ const id = d.id || newId(); byId.set(id, {...d, id}); } });
+      docs = [...byId.values()]; persist(); render();
+      setMsg("Backup ripristinato: "+data.length+" escalation importate.","okm");
+    }catch(e){ setMsg("Il file non è un backup valido del tracker.","err"); }
+  });
+})();
+</script>
+
+</body>
+</html>
