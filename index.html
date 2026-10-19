@@ -622,7 +622,7 @@ $('btnCsv').onclick = ()=>{
   const cols = ['Vincolo','N. escalation','Nome AM','Topic','Priority','Apertura ticket','Apertura escalation','Chiusura escalation','Stato','Ticket→Escalation','Tempo risoluzione','Note'];
   const q = v => '"' + String(v==null?'':v).replace(/"/g,'""') + '"';
   const rows = list.map(e=>{ const v=vincolo(e); return [v.label.replace(/^[✓✗⏳] /,''), e.numero, e.am, e.topic, e.priority, fmtDate(e.apTicket), fmtDate(e.apEsc), fmtDate(e.chEsc), stato(e), fmtDur(t2e(e)), fmtDur(ris(e)), e.note].map(q).join(';'); });
-  download(`escalation_${today()}.csv`, '﻿' + cols.map(q).join(';') + '\n' + rows.join('\n'), 'text/csv;charset=utf-8');
+  download(`escalation_${today()}.csv`, '\ufeff' + cols.map(q).join(';') + '\n' + rows.join('\n'), 'text/csv;charset=utf-8');
 };
 $('btnBackup').onclick = ()=> download(`backup_escalation_${today()}.json`, JSON.stringify(data,null,2), 'application/json');
 $('btnRestore').onclick = ()=> $('fileRestore').click();
