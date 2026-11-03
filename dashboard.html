@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard Escalation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+  :root {
+    --font-anthropic-sans: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-anthropic-serif: "Source Serif 4", Georgia, serif;
+    --color-fg: #1f1e1d; --color-fg-muted: #6b6a66; --color-bg: #faf9f5; --color-panel: #ffffff;
+    --color-border-line: #e3e1da; --color-ok: #2f7d4f; --color-warn: #b7791f; --color-bad: #c0392b;
+    --cds-chart-muted: #9aa5b8; --cds-chart-status-critical: #d0453a; --cds-chart-grid: #ecebe6;
+    --cds-surface-popover: #ffffff; --cds-border: #dcdad3; --cds-text-secondary: #6b6a66;
+    --cds-shadow-popover: 0 4px 16px rgba(0,0,0,.10);
+    --series-0: #3b6fd4;
+    --cds-gap-xs: 4px; --cds-gap-sm: 8px; --cds-gap-md: 16px; --cds-gap-lg: 28px;
+    --cds-pad-xs: 6px; --cds-pad-sm: 10px; --cds-pad-lg: 18px; --cds-radius: 10px;
+    --cds-font-size-title: 2rem; --cds-font-size-heading: 1rem; --cds-font-size-body: .95rem; --cds-font-size-caption: .8rem;
+    --cds-font-weight-medium: 500; --cds-dur-slow: .3s;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-fg: #ecebe6; --color-fg-muted: #a3a29c; --color-bg: #1c1b1a; --color-panel: #262523;
+      --color-border-line: #3a3936; --color-ok: #5cbf86; --color-bad: #e8695e;
+      --cds-chart-muted: #6f7a8e; --cds-chart-status-critical: #e8695e; --cds-chart-grid: #33322f;
+      --cds-surface-popover: #2e2d2a; --cds-border: #45443f; --cds-text-secondary: #a3a29c;
+      --series-0: #6d9bf0;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--color-bg); color: var(--color-fg); }
+  .page { max-width: 1200px; margin: 0 auto; padding: 24px 16px 48px; }
+  .bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 24px; font-family: var(--font-anthropic-sans); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+  .bar a { color: var(--color-fg-muted); }
+  .bar select { font: inherit; color: var(--color-fg); background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: 8px; padding: 6px 10px; }
+  .bar button { font: inherit; color: var(--color-fg); background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+  .bar-r { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .empty { padding: 40px; text-align: center; font-family: var(--font-anthropic-sans); color: var(--color-fg-muted); }
+  @media print { .bar { display: none; } html, body { background: #fff; } }
+
+  .ex { display: flex; flex-direction: column; gap: var(--cds-gap-lg); font-family: var(--font-anthropic-sans); color: var(--color-fg); }
+  .ex-head { display: flex; flex-direction: column; gap: var(--cds-gap-xs); }
+  .ex-title { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; text-wrap: balance; }
+  .ex-lead { margin: 0; color: var(--color-fg-muted); font-size: var(--cds-font-size-body); max-width: 70ch; }
+  .ex .ex-lead b { color: var(--color-fg); font-weight: 600; }
+  .ex-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: var(--cds-gap-md); }
+  .ex-tile, .ex-card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); min-width: 0; }
+  .ex-tile { display: flex; flex-direction: column; gap: var(--cds-gap-xs); }
+  .ex-label { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+  .ex-num { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .ex-sub { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); font-variant-numeric: tabular-nums; }
+  .ex-sub b { color: var(--color-fg); font-weight: 500; }
+  .ex-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: var(--cds-gap-md); }
+  .ex-card { display: flex; flex-direction: column; gap: var(--cds-gap-sm); }
+  .ex-card h2 { margin: 0; font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); }
+  .ex-note { margin: 0; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+  .ex-chart { position: relative; min-height: 240px; }
+  .ex-chart svg text { fill: var(--color-fg-muted); font-size: 11px; font-family: var(--font-anthropic-sans); }
+  .ex-chart svg text.ex-val { fill: var(--color-fg); }
+  .ex-legend { display: flex; flex-wrap: wrap; gap: var(--cds-gap-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+  .ex-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .ex-sw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .ex-sw-ok { background: var(--cds-chart-muted); }
+  .ex-sw-ut { background: var(--color-border-line); }
+  .ex-sw-ko { background: var(--cds-chart-status-critical); }
+  .ex-tip { position: absolute; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); border-radius: var(--cds-radius); box-shadow: var(--cds-shadow-popover); padding: var(--cds-pad-xs) var(--cds-pad-sm); font-size: var(--cds-font-size-caption); white-space: nowrap; z-index: 2; }
+  .ex-tip .ex-tip-h { color: var(--cds-text-secondary); }
+  .ex-tablebox { overflow: auto; max-height: 26rem; }
+  .ex table { width: 100%; border-collapse: collapse; font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; }
+  .ex th { text-align: left; font-weight: 500; color: var(--color-fg-muted); padding: 6px 8px; border-bottom: 1px solid var(--color-border-line); position: sticky; top: 0; background: var(--color-panel); }
+  .ex td { padding: 6px 8px; border-bottom: 1px solid var(--color-border-line); }
+  .ex th.ex-r, .ex td.ex-r { text-align: right; }
+  .ex-pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; border: 1px solid var(--color-border-line); }
+  .ex-pill-ko { color: var(--color-bad); }
+  .ex-pill-ok { color: var(--color-ok); }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="bar">
+    <a href="./">← Torna al tracker</a>
+    <div class="bar-r">
+      <label for="mese">Mese</label>
+      <select id="mese"></select>
+      <button type="button" onclick="window.print()">Stampa / PDF</button>
+    </div>
+  </div>
+
+  <div id="vuoto" class="empty" hidden>Nessuna escalation trovata nel tracker su questo browser.</div>
+
+  <div class="ex" id="dash">
+    <header class="ex-head">
+      <h1 class="ex-title" id="titolo">Escalation</h1>
+      <p class="ex-lead">Escalation aperte <span data-txt="periodo">—</span>. Il vincolo è rispettato nel <b data-kpi="pct_vincolo">—</b> dei casi: <b data-kpi="pct_p2">—</b> per le P2, <b data-kpi="pct_p3">—</b> per le P3.</p>
+    </header>
+
+    <section class="ex-tiles">
+      <div class="ex-tile">
+        <span class="ex-label">Escalation aperte nel mese</span>
+        <span class="ex-num" data-kpi="totale">—</span>
+        <span class="ex-sub"><b data-kpi="aperte">—</b> ancora aperte · <b data-kpi="chiuse">—</b> chiuse</span>
+      </div>
+      <div class="ex-tile">
+        <span class="ex-label">Vincolo rispettato</span>
+        <span class="ex-num" data-kpi="pct_vincolo">—</span>
+        <span class="ex-sub"><b data-kpi="non_rispettate">—</b> non rispettate · Utenze incluse</span>
+      </div>
+      <div class="ex-tile">
+        <span class="ex-label">Tempo medio ticket → escalation</span>
+        <span class="ex-num" data-kpi="lag_medio">—</span>
+        <span class="ex-sub">mediana <b data-kpi="lag_mediana">—</b></span>
+      </div>
+      <div class="ex-tile">
+        <span class="ex-label">Tempo medio di risoluzione</span>
+        <span class="ex-num" data-kpi="res_medio">—</span>
+        <span class="ex-sub">mediana <b data-kpi="res_mediana">—</b> · sulle chiuse</span>
+      </div>
+      <div class="ex-tile">
+        <span class="ex-label">Chiuse in giornata</span>
+        <span class="ex-num" data-kpi="in_giornata">—</span>
+        <span class="ex-sub">su <b data-kpi="chiuse">—</b> chiuse</span>
+      </div>
+    </section>
+
+    <section class="ex-grid">
+      <div class="ex-card">
+        <h2>Escalation per settimana</h2>
+        <p class="ex-note">Per data di apertura escalation, divise per esito del vincolo.</p>
+        <div class="ex-legend"><span><i class="ex-sw ex-sw-ok"></i>Rispettato</span><span><i class="ex-sw ex-sw-ut"></i>Utenze (esenti)</span><span><i class="ex-sw ex-sw-ko"></i>Non rispettato</span></div>
+        <div class="ex-chart" id="ch-weeks"></div>
+      </div>
+      <div class="ex-card">
+        <h2>Vincolo per priority</h2>
+        <p class="ex-note">Quota di escalation aperte rispettando il tempo minimo (P2 almeno 1 giorno, P3 almeno 3 giorni dal ticket).</p>
+        <div class="ex-chart" id="ch-prio"></div>
+      </div>
+    </section>
+
+    <section class="ex-grid">
+      <div class="ex-card">
+        <h2>Per topic</h2>
+        <p class="ex-note">Escalation per topic, con la parte non rispettata in rosso. Primi 10.</p>
+        <div class="ex-chart" id="ch-topic"></div>
+      </div>
+      <div class="ex-card">
+        <h2>Per AM</h2>
+        <p class="ex-note">Tutte le escalation <span data-txt="mese_di">—</span> per Area Manager.</p>
+        <div class="ex-tablebox">
+          <table>
+            <thead><tr><th>AM</th><th class="ex-r">Escalation</th><th class="ex-r">Non rispettate</th><th class="ex-r">Ancora aperte</th></tr></thead>
+            <tbody id="am-rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="ex-card">
+      <h2>Ancora aperte</h2>
+      <p class="ex-note">Escalation aperte <span data-txt="mese_a">—</span> e non ancora chiuse.</p>
+      <div class="ex-tablebox">
+        <table>
+          <thead><tr><th>N. escalation</th><th>AM</th><th>Topic</th><th>Priority</th><th>Apertura escalation</th><th>Vincolo</th></tr></thead>
+          <tbody id="open-rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <p class="ex-note">Vincolo: tempo minimo tra apertura ticket e apertura escalation, 1 giorno per le P2 e 3 giorni per le P3; le Utenze sono esenti e contano come rispettate. I tempi sono calcolati come nel tracker. Topic e nomi AM scritti in modi diversi sono stati uniti (es. Troianello/Troainello → Troianiello, Gonzales → Gonzalez, out of scop → out of scope). Dati letti in tempo reale dal tracker su questo browser.</p>
+  </div>
+</div>
+
+<script>
+(() => {
+  const STORE_KEY = 'tracker-escalation-v1';
+  const MESI = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'];
+  const MESI_BREVI = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+  const H = 36e5;
+  const AM = { 'Troianello': 'Troianiello', 'Troainello': 'Troianiello', 'Gonzales': 'Gonzalez' };
+  const TOPIC = { 'out of scop': 'out of scope', 'riparazioni': 'riparazione', 'next': 'next 2.0' };
+  const sel = document.getElementById('mese');
+  let all = [];
+
+  // ---- Dati dal tracker ----
+  function load() {
+    let raw = [];
+    try { raw = JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); } catch (e) { raw = []; }
+    if (!Array.isArray(raw)) raw = [];
+    return raw.filter((e) => e && e.apEsc).map((e) => {
+      const t = String(e.topic || '').trim().toLowerCase();
+      const topic = TOPIC[t] || t || '(senza topic)';
+      const am = String(e.am || '').trim();
+      const lag = (new Date(e.apEsc) - new Date(e.apTicket || e.apEsc)) / H;
+      const chiusa = !!e.chEsc;
+      const res = chiusa ? (new Date(e.chEsc) - new Date(e.apEsc)) / H : null;
+      const min = e.priority === 'P2' ? 24 : e.priority === 'P3' ? 72 : 0;
+      const vincolo = topic === 'utenza' ? 'Utenze' : lag >= min ? 'Rispettato' : 'Non rispettato';
+      return { numero: String(e.numero || '').replace(/\s+/g, ' ').trim(), am: AM[am] || am || '(senza AM)', topic, priority: e.priority, apertura_escalation: e.apEsc, stato: chiusa ? 'Chiusa' : 'Aperta', ore_ticket_esc: lag, ore_risoluzione: res, vincolo };
+    });
+  }
+
+  function months(rows) {
+    return [...new Set(rows.map((e) => e.apertura_escalation.slice(0, 7)))].sort().reverse();
+  }
+
+  function fillSelect() {
+    const ms = months(all);
+    const prev = sel.value;
+    sel.replaceChildren();
+    ms.forEach((m) => {
+      const o = document.createElement('option');
+      o.value = m;
+      o.textContent = MESI[Number(m.slice(5, 7)) - 1] + ' ' + m.slice(0, 4);
+      sel.append(o);
+    });
+    if (ms.includes(prev)) { sel.value = prev; return; }
+    // Default: mese precedente a quello corrente (report mensile), altrimenti il più recente
+    const now = new Date();
+    const p = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const pm = p.getFullYear() + '-' + String(p.getMonth() + 1).padStart(2, '0');
+    let want = ms.includes(pm) ? pm : ms[0];
+    try { const q = new URLSearchParams(location.search).get('mese'); if (q && ms.includes(q)) want = q; } catch (e) {}
+    if (want) sel.value = want;
+  }
+
+  // ---- Calcoli (come nella dashboard originale) ----
+  const dur = (h) => { if (!isFinite(h)) return '—'; const r = Math.round(h); return Math.floor(r / 24) + 'g ' + (r % 24) + 'h'; };
+  const mean = (a) => a.length ? a.reduce((s, x) => s + x, 0) / a.length : NaN;
+  const med = (a) => { if (!a.length) return NaN; const s = [...a].sort((x, y) => x - y); const n = s.length; return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2; };
+  const pct = (a, b) => b ? Math.round(100 * a / b) + '%' : '—';
+  const ok = (e) => e.vincolo !== 'Non rispettato';
+
+  function kpi(esc) {
+    const closed = esc.filter((e) => e.stato === 'Chiusa');
+    const lag = esc.map((e) => e.ore_ticket_esc);
+    const res = closed.map((e) => e.ore_risoluzione);
+    const p2 = esc.filter((e) => e.priority === 'P2');
+    const p3 = esc.filter((e) => e.priority === 'P3');
+    return {
+      totale: esc.length, aperte: esc.length - closed.length, chiuse: closed.length,
+      non_rispettate: esc.filter((e) => !ok(e)).length,
+      pct_vincolo: pct(esc.filter(ok).length, esc.length),
+      pct_p2: pct(p2.filter(ok).length, p2.length),
+      pct_p3: pct(p3.filter(ok).length, p3.length),
+      lag_medio: dur(mean(lag)), lag_mediana: dur(med(lag)),
+      res_medio: dur(mean(res)), res_mediana: dur(med(res)),
+      in_giornata: res.filter((h) => h < 24).length,
+    };
+  }
+
+  function weeksOf(ym) {
+    const y = Number(ym.slice(0, 4)), m = Number(ym.slice(5, 7));
+    const last = new Date(y, m, 0).getDate();
+    const out = [];
+    let a = 1;
+    while (a <= last) {
+      const dow = (new Date(y, m - 1, a).getDay() + 6) % 7; // 0 = lunedì
+      const b = Math.min(last, a + (6 - dow));
+      out.push([(a === b ? a : a + '–' + b) + ' ' + MESI_BREVI[m - 1], a, b]);
+      a = b + 1;
+    }
+    return out;
+  }
+
+  function perSettimana(esc, ym) {
+    return weeksOf(ym).map(([settimana, a, b]) => {
+      const w = esc.filter((e) => { const d = Number(e.apertura_escalation.slice(8, 10)); return d >= a && d <= b; });
+      return { settimana, rispettate: w.filter((e) => e.vincolo === 'Rispettato').length, utenze: w.filter((e) => e.vincolo === 'Utenze').length, non_rispettate: w.filter((e) => e.vincolo === 'Non rispettato').length, totale: w.length };
+    });
+  }
+
+  const perPriority = (esc) => ['P1', 'P2', 'P3'].map((priority) => {
+    const p = esc.filter((e) => e.priority === priority);
+    const k = p.filter(ok).length;
+    return { priority, n: p.length, rispettate: k, quota: p.length ? k / p.length : 0 };
+  }).filter((r) => r.n > 0);
+
+  const perTopic = (esc) => Array.from(d3.group(esc, (e) => e.topic), ([topic, r]) => ({ topic, n: r.length, non_rispettate: r.filter((e) => e.vincolo === 'Non rispettato').length }))
+    .sort((a, b) => b.n - a.n || b.non_rispettate - a.non_rispettate || a.topic.localeCompare(b.topic));
+
+  const perAm = (esc) => Array.from(d3.group(esc, (e) => e.am), ([am, r]) => ({ am, n: r.length, non_rispettate: r.filter((e) => e.vincolo === 'Non rispettato').length, aperte: r.filter((e) => e.stato === 'Aperta').length }))
+    .sort((a, b) => b.n - a.n || b.non_rispettate - a.non_rispettate || a.am.localeCompare(b.am));
+
+  const aperte = (esc) => esc.filter((e) => e.stato === 'Aperta')
+    .sort((a, b) => a.apertura_escalation.localeCompare(b.apertura_escalation))
+    .map((e) => ({ numero: e.numero, am: e.am, topic: e.topic, priority: e.priority, apertura: e.apertura_escalation.slice(8, 10) + '/' + e.apertura_escalation.slice(5, 7) + '/' + e.apertura_escalation.slice(0, 4), vincolo: e.vincolo }));
+
+  // ---- Disegno (come nella dashboard originale) ----
+  function drawWeeks(el, rows) {
+    el.replaceChildren();
+    const W = Math.max(280, el.clientWidth), Hh = 240, m = { t: 18, r: 8, b: 26, l: 28 };
+    const x = d3.scaleBand(rows.map((r) => r.settimana), [m.l, W - m.r]).padding(0.35);
+    const max = d3.max(rows, (r) => r.totale) || 1;
+    const y = d3.scaleLinear([0, max], [Hh - m.b, m.t]).nice();
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${Hh}`);
+    svg.append('g').selectAll('line').data(y.ticks(4)).join('line').attr('x1', m.l).attr('x2', W - m.r).attr('y1', (t) => y(t)).attr('y2', (t) => y(t)).style('stroke', 'var(--cds-chart-grid)');
+    svg.append('g').selectAll('text').data(y.ticks(4)).join('text').attr('x', m.l - 6).attr('y', (t) => y(t)).attr('dy', '0.32em').attr('text-anchor', 'end').text((t) => t);
+    const keys = [['rispettate', 'var(--cds-chart-muted)'], ['utenze', 'var(--color-border-line)'], ['non_rispettate', 'var(--cds-chart-status-critical)']];
+    const tip = d3.select(el).append('div').attr('class', 'ex-tip').style('display', 'none');
+    const bw = Math.min(32, x.bandwidth());
+    rows.forEach((r) => {
+      let acc = 0;
+      const g = svg.append('g');
+      keys.forEach(([k, c]) => {
+        if (!r[k]) return;
+        g.append('rect').attr('x', x(r.settimana) + (x.bandwidth() - bw) / 2).attr('width', bw).attr('y', y(acc + r[k])).attr('height', y(acc) - y(acc + r[k])).style('fill', c);
+        acc += r[k];
+      });
+      svg.append('text').attr('class', 'ex-val').attr('x', x(r.settimana) + x.bandwidth() / 2).attr('y', y(r.totale) - 5).attr('text-anchor', 'middle').text(r.totale);
+      svg.append('text').attr('x', x(r.settimana) + x.bandwidth() / 2).attr('y', Hh - 8).attr('text-anchor', 'middle').text(r.settimana);
+      g.append('rect').attr('x', x(r.settimana)).attr('width', x.bandwidth()).attr('y', m.t).attr('height', Hh - m.b - m.t).style('fill', 'transparent')
+        .on('pointermove', (ev) => {
+          const [px, py] = d3.pointer(ev, el);
+          tip.style('display', null);
+          tip.selectAll('*').remove();
+          tip.append('div').attr('class', 'ex-tip-h').text(r.settimana);
+          tip.append('div').text(`Totale ${r.totale}`);
+          tip.append('div').text(`Rispettate ${r.rispettate} · Utenze ${r.utenze} · Non rispettate ${r.non_rispettate}`);
+          const tw = tip.node().offsetWidth;
+          tip.style('left', Math.max(0, Math.min(el.clientWidth - tw, px - tw / 2)) + 'px').style('top', Math.max(0, py - 64) + 'px');
+        })
+        .on('pointerleave', () => tip.style('display', 'none'));
+    });
+  }
+
+  function drawPrio(el, rows) {
+    el.replaceChildren();
+    const W = Math.max(280, el.clientWidth), rowH = 56, Hh = Math.max(240, rows.length * rowH + 40), m = { l: 34, r: 12 };
+    const x = d3.scaleLinear([0, 1], [m.l, W - m.r]);
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${Hh}`);
+    const top = (Hh - rows.length * rowH) / 2;
+    rows.forEach((r, i) => {
+      const yy = top + i * rowH;
+      svg.append('text').attr('x', 0).attr('y', yy + 22).attr('class', 'ex-val').style('font-size', '13px').text(r.priority);
+      svg.append('rect').attr('x', m.l).attr('y', yy + 10).attr('width', W - m.l - m.r).attr('height', 18).attr('rx', 3).style('fill', 'var(--cds-chart-grid)');
+      svg.append('rect').attr('x', m.l).attr('y', yy + 10).attr('width', Math.max(0, x(r.quota) - m.l)).attr('height', 18).attr('rx', 3).style('fill', 'var(--series-0)');
+      svg.append('text').attr('x', m.l).attr('y', yy + 44).text(`${d3.format('.0%')(r.quota)} rispettato · ${r.rispettate} su ${r.n}`);
+    });
+  }
+
+  function drawTopic(el, all) {
+    el.replaceChildren();
+    const rows = all.slice(0, 10);
+    const W = Math.max(280, el.clientWidth), bh = 16, gap = 8, Hh = Math.max(240, rows.length * (bh + gap) + 8);
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${Hh}`);
+    const probe = svg.append('g');
+    const lw = d3.max(rows, (r) => probe.append('text').text(r.topic).node().getComputedTextLength()) || 60;
+    probe.remove();
+    const left = Math.min(lw + 10, W * 0.45);
+    const x = d3.scaleLinear([0, d3.max(rows, (r) => r.n) || 1], [left, W - 70]);
+    rows.forEach((r, i) => {
+      const yy = 4 + i * (bh + gap);
+      svg.append('text').attr('x', left - 8).attr('y', yy + bh / 2).attr('dy', '0.32em').attr('text-anchor', 'end').text(r.topic);
+      svg.append('rect').attr('x', left).attr('y', yy).attr('width', x(r.n) - left).attr('height', bh).attr('rx', 3).style('fill', 'var(--cds-chart-muted)');
+      if (r.non_rispettate) svg.append('rect').attr('x', left).attr('y', yy).attr('width', x(r.non_rispettate) - left).attr('height', bh).attr('rx', 3).style('fill', 'var(--cds-chart-status-critical)');
+      svg.append('text').attr('class', 'ex-val').attr('x', x(r.n) + 6).attr('y', yy + bh / 2).attr('dy', '0.32em').text(r.non_rispettate ? `${r.n} (${r.non_rispettate} ✗)` : r.n);
+    });
+  }
+
+  function drawAm(el, rows) {
+    el.replaceChildren();
+    rows.forEach((r) => {
+      const tr = document.createElement('tr');
+      [['am', ''], ['n', 'ex-r'], ['non_rispettate', 'ex-r'], ['aperte', 'ex-r']].forEach(([k, c]) => {
+        const td = document.createElement('td');
+        if (c) td.className = c;
+        td.textContent = String(r[k]);
+        tr.append(td);
+      });
+      el.append(tr);
+    });
+  }
+
+  function drawOpen(el, rows) {
+    el.replaceChildren();
+    if (!rows.length) {
+      const tr = document.createElement('tr'); const td = document.createElement('td');
+      td.colSpan = 6; td.textContent = 'Nessuna escalation ancora aperta.'; td.style.color = 'var(--color-fg-muted)';
+      tr.append(td); el.append(tr); return;
+    }
+    rows.forEach((r) => {
+      const tr = document.createElement('tr');
+      ['numero', 'am', 'topic', 'priority', 'apertura'].forEach((k) => {
+        const td = document.createElement('td');
+        td.textContent = r[k];
+        tr.append(td);
+      });
+      const td = document.createElement('td');
+      const pill = document.createElement('span');
+      pill.className = 'ex-pill ' + (r.vincolo === 'Non rispettato' ? 'ex-pill-ko' : 'ex-pill-ok');
+      pill.textContent = r.vincolo;
+      td.append(pill);
+      tr.append(td);
+      el.append(tr);
+    });
+  }
+
+  // ---- Render ----
+  function render() {
+    const ym = sel.value;
+    const dashEl = document.getElementById('dash');
+    const vuoto = document.getElementById('vuoto');
+    if (!ym) { dashEl.hidden = true; vuoto.hidden = false; return; }
+    dashEl.hidden = false; vuoto.hidden = true;
+    const esc = all.filter((e) => e.apertura_escalation.slice(0, 7) === ym);
+    const mi = Number(ym.slice(5, 7)) - 1, yr = ym.slice(0, 4);
+    const nome = MESI[mi];
+    const last = new Date(Number(yr), mi + 1, 0).getDate();
+    const prep = 'di ';
+    const prepA = 'a ';
+    document.getElementById('titolo').textContent = `Escalation · ${nome} ${yr}`;
+    document.title = `Escalation ${nome} ${yr}`;
+    const txt = { periodo: `dal 1 al ${last} ${nome}`, mese_di: prep + nome, mese_a: prepA + nome };
+    document.querySelectorAll('[data-txt]').forEach((el) => { el.textContent = txt[el.dataset.txt]; });
+    const k = kpi(esc);
+    document.querySelectorAll('[data-kpi]').forEach((el) => {
+      const v = k[el.dataset.kpi];
+      el.textContent = typeof v === 'number' ? d3.format(',')(v) : v;
+    });
+    drawWeeks(document.getElementById('ch-weeks'), perSettimana(esc, ym));
+    drawPrio(document.getElementById('ch-prio'), perPriority(esc));
+    drawTopic(document.getElementById('ch-topic'), perTopic(esc));
+    drawAm(document.getElementById('am-rows'), perAm(esc));
+    drawOpen(document.getElementById('open-rows'), aperte(esc));
+  }
+
+  function refresh() { all = load(); fillSelect(); render(); }
+
+  sel.addEventListener('change', render);
+  // Si aggiorna da sola quando modifichi il tracker in un'altra scheda
+  window.addEventListener('storage', (e) => { if (e.key === STORE_KEY || e.key === null) refresh(); });
+  window.addEventListener('focus', refresh);
+  let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(render, 150); });
+  refresh();
+})();
+</script>
+</body>
+</html>
